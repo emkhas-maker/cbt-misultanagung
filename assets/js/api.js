@@ -25,19 +25,37 @@ const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbyy5dZDJ3yTdTicKjz
 const Api = {
   /**
    * Kirim request POST ke backend.
+   *
+   * CATATAN: sengaja pakai XMLHttpRequest, BUKAN fetch(). Pada
+   * beberapa kondisi jaringan/browser, fetch() gagal (net::ERR_FAILED)
+   * saat memanggil Apps Script Web App dari origin web sungguhan
+   * (https://...github.io), karena cara fetch() mengikuti redirect
+   * internal Apps Script (302 -> googleusercontent.com) tidak selalu
+   * cocok dengan setup CORS Apps Script. XMLHttpRequest terbukti lebih
+   * konsisten untuk kasus ini.
+   *
    * @param {string} action - nama action, contoh: 'login', 'getSoal'
    * @param {Object} data - payload, contoh: { nisn, token }
    */
-  async post(action, data) {
-    try {
-      const res = await fetch(API_BASE_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action, data }),
-      });
-      return await res.json();
-    } catch (err) {
-      return { ok: false, error: 'Tidak bisa terhubung ke server. Periksa koneksi internet.' };
-    }
+  post(action, data) {
+    return new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', API_BASE_URL, true);
+
+      xhr.onload = function () {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch (err) {
+          resolve({ ok: false, error: 'Respons server tidak valid.' });
+        }
+      };
+
+      xhr.onerror = function () {
+        resolve({ ok: false, error: 'Tidak bisa terhubung ke server. Periksa koneksi internet.' });
+      };
+
+      xhr.send(JSON.stringify({ action, data }));
+    });
   },
 
   /**
@@ -45,13 +63,25 @@ const Api = {
    * @param {string} action
    * @param {Object} params - akan diubah jadi query string
    */
-  async get(action, params = {}) {
-    try {
+  get(action, params = {}) {
+    return new Promise((resolve) => {
       const query = new URLSearchParams({ action, ...params }).toString();
-      const res = await fetch(`${API_BASE_URL}?${query}`);
-      return await res.json();
-    } catch (err) {
-      return { ok: false, error: 'Tidak bisa terhubung ke server. Periksa koneksi internet.' };
-    }
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', `${API_BASE_URL}?${query}`, true);
+
+      xhr.onload = function () {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch (err) {
+          resolve({ ok: false, error: 'Respons server tidak valid.' });
+        }
+      };
+
+      xhr.onerror = function () {
+        resolve({ ok: false, error: 'Tidak bisa terhubung ke server. Periksa koneksi internet.' });
+      };
+
+      xhr.send();
+    });
   },
 };
