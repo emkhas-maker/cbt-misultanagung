@@ -1,0 +1,165 @@
+/* ============================================================
+   STYLE.CSS — Custom Styling
+   MI Sultan Agung — Sistem CBT
+   ============================================================
+   Elemen "signature" halaman ini adalah pita pola garis geometris
+   tipis (pattern-band), terinspirasi motif geometris pada seni
+   Islam — dipakai secukupnya di header login & sidebar sebagai
+   identitas visual, bukan dekorasi berulang di semua tempat.
+   ============================================================ */
+
+.pattern-band {
+  height: 6px;
+  width: 72px;
+  margin-inline: auto;
+  background-image: repeating-linear-gradient(
+    135deg,
+    #0F5C56 0px, #0F5C56 4px,
+    transparent 4px, transparent 8px
+  );
+  border-radius: 999px;
+  opacity: 0.55;
+}
+
+.pattern-band-dark {
+  height: 4px;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255,255,255,0.5) 0px, rgba(255,255,255,0.5) 3px,
+    transparent 3px, transparent 6px
+  );
+  border-radius: 999px;
+}
+
+/* Tab login aktif/nonaktif */
+.login-tab[aria-selected="true"] {
+  background-color: #ffffff;
+  color: #0B4741;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+.login-tab[aria-selected="false"] {
+  color: #0F5C56;
+  opacity: 0.7;
+}
+
+/* Nav item sidebar admin */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 0.6rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.72);
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.nav-item:hover {
+  background-color: rgba(255,255,255,0.08);
+  color: #ffffff;
+}
+.nav-item.active {
+  background-color: rgba(255,255,255,0.14);
+  color: #ffffff;
+}
+.nav-item .nav-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background-color: #D9A441;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.nav-item.active .nav-dot {
+  opacity: 1;
+}
+
+/* Fokus keyboard yang jelas — aksesibilitas */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid #1D8A7F;
+  outline-offset: 2px;
+}
+
+/* Hormati preferensi pengguna yang mematikan animasi */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Kartu ringkasan dashboard */
+.stat-card {
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.05);
+  border-radius: 1rem;
+  padding: 1.25rem;
+}
+
+/* Placeholder halaman yang belum dibangun (fase berikutnya) */
+.placeholder-panel {
+  border: 1.5px dashed rgba(15,92,86,0.25);
+  border-radius: 1rem;
+  background: rgba(15,92,86,0.03);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+}
+
+/* Print — Kartu Peserta, Daftar Hadir, Berita Acara (Fase 6) */
+#print-container {
+  display: none;
+}
+
+.kartu-peserta {
+  width: 340px;
+  border: 1.5px solid #0F5C56;
+  border-radius: 10px;
+  padding: 14px;
+  break-inside: avoid;
+}
+.kartu-header { text-align: center; border-bottom: 1.5px solid #0F5C56; padding-bottom: 8px; margin-bottom: 10px; }
+.kartu-sekolah { font-weight: 800; font-size: 13px; color: #0F5C56; letter-spacing: 0.03em; }
+.kartu-label { font-size: 10px; color: #5B6470; margin-top: 2px; }
+.kartu-tabel { width: 100%; font-size: 11px; margin-bottom: 10px; }
+.kartu-tabel td { padding: 2px 0; vertical-align: top; }
+.kartu-tabel td:first-child { width: 70px; color: #5B6470; }
+.kartu-token { background: #EAF3F1; border-radius: 8px; padding: 8px; text-align: center; margin-bottom: 12px; }
+.kartu-token-label { font-size: 9px; color: #5B6470; letter-spacing: 0.05em; }
+.kartu-token-value { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 18px; letter-spacing: 0.1em; color: #0B4741; }
+.kartu-footer { text-align: center; font-size: 10px; color: #5B6470; }
+.ttd-space { height: 40px; }
+
+.grid-kartu { display: flex; flex-wrap: wrap; gap: 14px; }
+
+.dok-cetak { font-size: 13px; color: #1E2A2F; }
+.kop-surat { text-align: center; }
+.kop-sekolah { font-weight: 800; font-size: 16px; }
+.kop-alamat { font-size: 11px; color: #5B6470; }
+.kop-garis { border: none; border-top: 2px solid #0F2A4A; margin: 8px 0 16px; }
+.dok-judul { text-align: center; font-size: 15px; text-decoration: underline; margin-bottom: 16px; }
+.dok-info { margin-bottom: 16px; font-size: 12px; }
+.dok-info td { padding: 1px 0; }
+.dok-info td:first-child { width: 160px; }
+.dok-paragraf { margin-bottom: 12px; line-height: 1.6; text-align: justify; }
+.dok-tabel { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 24px; }
+.dok-tabel th, .dok-tabel td { border: 1px solid #1E2A2F; padding: 5px 8px; }
+.dok-tabel th { background: #EAF3F1; }
+.ttd-cell { height: 28px; }
+.dok-ttd-panitia { display: flex; justify-content: space-between; margin-top: 24px; font-size: 12px; text-align: center; }
+.dok-ttd-panitia > div { width: 220px; }
+
+@media print {
+  body * { visibility: hidden; }
+  #print-container, #print-container * { visibility: visible; }
+  #print-container {
+    display: block;
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    padding: 20px;
+  }
+  @page { size: A4; margin: 15mm; }
+}
