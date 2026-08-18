@@ -39,22 +39,61 @@ const SHEET_MATERI = 'DB_Materi';
 /**
  * ------------------------------------------------------------
  * ENTRY POINT: doGet
- * Dipakai untuk request baca data (read-only), lewat query param.
- * Contoh pemanggilan dari frontend:
- *   GET {WEB_APP_URL}?action=ping
+ * Menangani DUA jenis pemanggilan:
+ *  1. Biasa (tanpa parameter "callback") -> balas JSON polos.
+ *     Dipakai untuk tes manual lewat browser (?action=ping).
+ *  2. JSONP (ada parameter "callback") -> balas JavaScript yang
+ *     memanggil fungsi callback tsb dengan data sebagai argumen.
+ *     INI YANG DIPAKAI FRONTEND (lewat api.js) untuk SEMUA request,
+ *     termasuk yang dulunya lewat POST -- supaya sepenuhnya
+ *     menghindari masalah CORS Apps Script (bukan mengatasi,
+ *     tapi memang tidak pernah memicu pengecekan CORS sama sekali,
+ *     karena dimuat lewat tag <script>, bukan fetch/XHR).
+ *
+ * Payload data (yang dulu dikirim lewat body POST) sekarang
+ * dikirim lewat parameter "data" berisi JSON yang di-encode ke
+ * URL, contoh:
+ *   ?action=login&data=%7B%22nisn%22%3A...%7D&callback=xyz
  * ------------------------------------------------------------
  */
 function doGet(e) {
+  const action = e.parameter.action;
+  const callback = e.parameter.callback;
+
+  let data = {};
+  if (e.parameter.data) {
+    try { data = JSON.parse(e.parameter.data); } catch (err) { data = {}; }
+  }
+
+  let hasil;
   try {
-    const action = e.parameter.action;
+    hasil = routeAction(action, data);
+  } catch (err) {
+    hasil = { ok: false, error: err.message };
+  }
 
-    switch (action) {
-      case 'ping':
-        return jsonResponse({ ok: true, message: 'Server CBT aktif', waktu_server: new Date().toISOString() });
+  if (callback) {
+    return ContentService
+      .createTextOutput(callback + '(' + JSON.stringify(hasil) + ');')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return jsonResponse(hasil, hasil.ok === false ? 400 : 200);
+}
 
-      default:
-        return jsonResponse({ ok: false, error: 'Action tidak dikenali: ' + action }, 400);
-    }
+
+/**
+ * ------------------------------------------------------------
+ * ENTRY POINT: doPost
+ * Dipertahankan untuk kompatibilitas & testing manual (curl/Postman),
+ * meski frontend sekarang tidak memakainya lagi (sudah pindah ke
+ * doGet dengan pola JSONP di atas, untuk menghindari CORS).
+ * ------------------------------------------------------------
+ */
+function doPost(e) {
+  try {
+    const body = JSON.parse(e.postData.contents);
+    const hasil = routeAction(body.action, body.data || {});
+    return jsonResponse(hasil, hasil.ok === false ? 400 : 200);
   } catch (err) {
     return jsonResponse({ ok: false, error: err.message }, 500);
   }
@@ -63,213 +102,116 @@ function doGet(e) {
 
 /**
  * ------------------------------------------------------------
- * ENTRY POINT: doPost
- * Dipakai untuk request yang mengirim data (login, submit jawaban, dst).
- * Body request harus JSON, contoh:
- *   { "action": "ping", "data": { ... } }
+ * ROUTER BERSAMA — dipakai doGet (JSONP) & doPost (legacy/testing)
+ * supaya logic-nya tidak dobel ditulis dua kali.
  * ------------------------------------------------------------
  */
-function doPost(e) {
-  try {
-    const body = JSON.parse(e.postData.contents);
-    const action = body.action;
+function routeAction(action, data) {
+  data = data || {};
 
-    switch (action) {
-      case 'ping':
-        return jsonResponse({ ok: true, message: 'POST diterima', diterima: body.data || null });
+  switch (action) {
+    case 'ping':
+      return { ok: true, message: 'Server CBT aktif', waktu_server: new Date().toISOString() };
 
-      case 'login': {
-        const { nisn, token } = body.data || {};
-        const hasil = validateToken(nisn, token);
-        if (!hasil.valid) {
-          return jsonResponse({ ok: false, error: hasil.error }, 401);
-        }
-        return jsonResponse({ ok: true, siswa: hasil.siswa });
-      }
-
-      case 'loginAdmin': {
-        const { password } = body.data || {};
-        const hasil = validateAdminPassword(password);
-        if (!hasil.valid) {
-          return jsonResponse({ ok: false, error: hasil.error }, 401);
-        }
-        const sessionToken = buatSesiAdmin();
-        return jsonResponse({ ok: true, session_token: sessionToken });
-      }
-
-      case 'getSiswaList': {
-        const { session_token } = body.data || {};
-        const hasil = getSiswaList(session_token);
-        return jsonResponse(hasil, hasil.ok ? 200 : 401);
-      }
-
-      case 'addSiswa': {
-        const { session_token, siswa } = body.data || {};
-        const hasil = addSiswa(session_token, siswa || {});
-        return jsonResponse(hasil, hasil.ok ? 200 : 400);
-      }
-
-      case 'editSiswa': {
-        const { session_token, nisn, siswa } = body.data || {};
-        const hasil = editSiswa(session_token, nisn, siswa || {});
-        return jsonResponse(hasil, hasil.ok ? 200 : 400);
-      }
-
-      case 'deleteSiswa': {
-        const { session_token, nisn } = body.data || {};
-        const hasil = deleteSiswa(session_token, nisn);
-        return jsonResponse(hasil, hasil.ok ? 200 : 400);
-      }
-
-      case 'importSiswaBatch': {
-        const { session_token, daftar_siswa } = body.data || {};
-        const hasil = importSiswaBatch(session_token, daftar_siswa || []);
-        return jsonResponse(hasil, hasil.ok ? 200 : 400);
-      }
-
-      case 'generateTokenSiswa': {
-        const { session_token, kelas } = body.data || {};
-        const hasil = generateTokenSiswaAction(session_token, kelas);
-        return jsonResponse(hasil, hasil.ok ? 200 : 400);
-      }
-
-      case 'getSoalList': {
-        const { session_token } = body.data || {};
-        const hasil = getSoalList(session_token);
-        return jsonResponse(hasil, hasil.ok ? 200 : 401);
-      }
-
-      case 'addSoal': {
-        const { session_token, soal } = body.data || {};
-        const hasil = addSoal(session_token, soal || {});
-        return jsonResponse(hasil, hasil.ok ? 200 : 400);
-      }
-
-      case 'editSoal': {
-        const { session_token, id_soal, soal } = body.data || {};
-        const hasil = editSoal(session_token, id_soal, soal || {});
-        return jsonResponse(hasil, hasil.ok ? 200 : 400);
-      }
-
-      case 'deleteSoal': {
-        const { session_token, id_soal } = body.data || {};
-        const hasil = deleteSoal(session_token, id_soal);
-        return jsonResponse(hasil, hasil.ok ? 200 : 400);
-      }
-
-      case 'importSoalBatch': {
-        const { session_token, daftar_soal } = body.data || {};
-        const hasil = importSoalBatch(session_token, daftar_soal || []);
-        return jsonResponse(hasil, hasil.ok ? 200 : 400);
-      }
-
-      case 'getRingkasanKelasMapel': {
-        const { session_token } = body.data || {};
-        const hasil = getRingkasanKelasMapel(session_token);
-        return jsonResponse(hasil, hasil.ok ? 200 : 401);
-      }
-
-      case 'getMateriList': {
-        const { session_token } = body.data || {};
-        const hasil = getMateriList(session_token);
-        return jsonResponse(hasil, hasil.ok ? 200 : 401);
-      }
-
-      case 'addMateri': {
-        const { session_token, materi } = body.data || {};
-        const hasil = addMateri(session_token, materi || {});
-        return jsonResponse(hasil, hasil.ok ? 200 : 400);
-      }
-
-      case 'deleteMateri': {
-        const { session_token, id_materi } = body.data || {};
-        const hasil = deleteMateri(session_token, id_materi);
-        return jsonResponse(hasil, hasil.ok ? 200 : 400);
-      }
-
-      case 'getMonitoringData': {
-        const { session_token, id_ujian } = body.data || {};
-        const hasil = getMonitoringData(session_token, id_ujian);
-        return jsonResponse(hasil, hasil.ok ? 200 : 401);
-      }
-
-      case 'forceSubmitSiswaAdmin': {
-        const { session_token, nisn, id_ujian } = body.data || {};
-        const hasil = forceSubmitSiswaAdmin(session_token, nisn, id_ujian);
-        return jsonResponse(hasil, hasil.ok ? 200 : 400);
-      }
-
-      case 'resetLoginSiswaAdmin': {
-        const { session_token, nisn, id_ujian } = body.data || {};
-        const hasil = resetLoginSiswaAdmin(session_token, nisn, id_ujian);
-        return jsonResponse(hasil, hasil.ok ? 200 : 400);
-      }
-
-      case 'getHasilNilai': {
-        const { session_token, id_ujian } = body.data || {};
-        const hasil = getHasilNilai(session_token, id_ujian);
-        return jsonResponse(hasil, hasil.ok ? 200 : 401);
-      }
-
-      case 'updateSkorUraian': {
-        const { session_token, id_hasil, skor_uraian } = body.data || {};
-        const hasil = updateSkorUraian(session_token, id_hasil, skor_uraian);
-        return jsonResponse(hasil, hasil.ok ? 200 : 400);
-      }
-
-      case 'getAnalisisButirSoal': {
-        const { session_token, id_ujian, kode_mapel } = body.data || {};
-        const hasil = getAnalisisButirSoal(session_token, id_ujian, kode_mapel);
-        return jsonResponse(hasil, hasil.ok ? 200 : 401);
-      }
-
-      case 'getUjian': {
-        const { nisn, token, id_ujian } = body.data || {};
-        const hasil = getUjian(nisn, token, id_ujian);
-        return jsonResponse(hasil, hasil.ok ? 200 : 401);
-      }
-
-      case 'getUjianAktif': {
-        const { nisn, token } = body.data || {};
-        const hasil = getUjianAktif(nisn, token);
-        return jsonResponse(hasil, hasil.ok ? 200 : 401);
-      }
-
-      case 'getUjianListAdmin': {
-        const { session_token } = body.data || {};
-        const hasil = getUjianListAdmin(session_token);
-        return jsonResponse(hasil, hasil.ok ? 200 : 401);
-      }
-
-      case 'getSoal': {
-        const { nisn, token, kode_mapel } = body.data || {};
-        const hasil = getSoal(nisn, token, kode_mapel);
-        return jsonResponse(hasil, hasil.ok ? 200 : 401);
-      }
-
-      case 'submitJawaban': {
-        const { nisn, token, id_ujian, jawaban_pg, jawaban_uraian, violations } = body.data || {};
-        const hasil = submitJawaban(nisn, token, id_ujian, jawaban_pg, jawaban_uraian, violations, 'Submitted');
-        return jsonResponse(hasil, hasil.ok ? 200 : 400);
-      }
-
-      case 'forceSubmitJawaban': {
-        const { nisn, token, id_ujian, jawaban_pg, jawaban_uraian, violations } = body.data || {};
-        const hasil = submitJawaban(nisn, token, id_ujian, jawaban_pg, jawaban_uraian, violations, 'Force Submitted');
-        return jsonResponse(hasil, hasil.ok ? 200 : 400);
-      }
-
-      case 'autosaveJawaban': {
-        const { nisn, token, id_ujian, jawaban_pg, jawaban_uraian, violations } = body.data || {};
-        const hasil = autosaveJawaban(nisn, token, id_ujian, jawaban_pg, jawaban_uraian, violations);
-        return jsonResponse(hasil, hasil.ok ? 200 : 400);
-      }
-
-      default:
-        return jsonResponse({ ok: false, error: 'Action tidak dikenali: ' + action }, 400);
+    case 'login': {
+      const hasil = validateToken(data.nisn, data.token);
+      if (!hasil.valid) return { ok: false, error: hasil.error };
+      return { ok: true, siswa: hasil.siswa };
     }
-  } catch (err) {
-    return jsonResponse({ ok: false, error: err.message }, 500);
+
+    case 'loginAdmin': {
+      const hasil = validateAdminPassword(data.password);
+      if (!hasil.valid) return { ok: false, error: hasil.error };
+      const sessionToken = buatSesiAdmin();
+      return { ok: true, session_token: sessionToken };
+    }
+
+    case 'getSiswaList':
+      return getSiswaList(data.session_token);
+
+    case 'addSiswa':
+      return addSiswa(data.session_token, data.siswa || {});
+
+    case 'editSiswa':
+      return editSiswa(data.session_token, data.nisn, data.siswa || {});
+
+    case 'deleteSiswa':
+      return deleteSiswa(data.session_token, data.nisn);
+
+    case 'importSiswaBatch':
+      return importSiswaBatch(data.session_token, data.daftar_siswa || []);
+
+    case 'generateTokenSiswa':
+      return generateTokenSiswaAction(data.session_token, data.kelas);
+
+    case 'getSoalList':
+      return getSoalList(data.session_token);
+
+    case 'addSoal':
+      return addSoal(data.session_token, data.soal || {});
+
+    case 'editSoal':
+      return editSoal(data.session_token, data.id_soal, data.soal || {});
+
+    case 'deleteSoal':
+      return deleteSoal(data.session_token, data.id_soal);
+
+    case 'importSoalBatch':
+      return importSoalBatch(data.session_token, data.daftar_soal || []);
+
+    case 'getRingkasanKelasMapel':
+      return getRingkasanKelasMapel(data.session_token);
+
+    case 'getMateriList':
+      return getMateriList(data.session_token);
+
+    case 'addMateri':
+      return addMateri(data.session_token, data.materi || {});
+
+    case 'deleteMateri':
+      return deleteMateri(data.session_token, data.id_materi);
+
+    case 'getMonitoringData':
+      return getMonitoringData(data.session_token, data.id_ujian);
+
+    case 'forceSubmitSiswaAdmin':
+      return forceSubmitSiswaAdmin(data.session_token, data.nisn, data.id_ujian);
+
+    case 'resetLoginSiswaAdmin':
+      return resetLoginSiswaAdmin(data.session_token, data.nisn, data.id_ujian);
+
+    case 'getHasilNilai':
+      return getHasilNilai(data.session_token, data.id_ujian);
+
+    case 'updateSkorUraian':
+      return updateSkorUraian(data.session_token, data.id_hasil, data.skor_uraian);
+
+    case 'getAnalisisButirSoal':
+      return getAnalisisButirSoal(data.session_token, data.id_ujian, data.kode_mapel);
+
+    case 'getUjian':
+      return getUjian(data.nisn, data.token, data.id_ujian);
+
+    case 'getUjianAktif':
+      return getUjianAktif(data.nisn, data.token);
+
+    case 'getUjianListAdmin':
+      return getUjianListAdmin(data.session_token);
+
+    case 'getSoal':
+      return getSoal(data.nisn, data.token, data.kode_mapel);
+
+    case 'submitJawaban':
+      return submitJawaban(data.nisn, data.token, data.id_ujian, data.jawaban_pg, data.jawaban_uraian, data.violations, 'Submitted');
+
+    case 'forceSubmitJawaban':
+      return submitJawaban(data.nisn, data.token, data.id_ujian, data.jawaban_pg, data.jawaban_uraian, data.violations, 'Force Submitted');
+
+    case 'autosaveJawaban':
+      return autosaveJawaban(data.nisn, data.token, data.id_ujian, data.jawaban_pg, data.jawaban_uraian, data.violations);
+
+    default:
+      return { ok: false, error: 'Action tidak dikenali: ' + action };
   }
 }
 
