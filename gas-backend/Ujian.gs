@@ -69,6 +69,11 @@ function getUjianListAdmin(sessionToken) {
   const ujianList = sheetToObjects(getSheet(SHEET_UJIAN));
   return { ok: true, ujian: ujianList };
 }
+
+
+/**
+ * ------------------------------------------------------------
+ * ENDPOINT: getUjianAktif
  * Sama seperti getUjian(), tapi mencari baris dengan Status="Aktif"
  * -- dipakai siswa saat login karena mereka tidak perlu tahu
  * ID_Ujian secara spesifik, cukup ujian mana pun yang sedang
