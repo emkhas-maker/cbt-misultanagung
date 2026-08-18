@@ -56,7 +56,7 @@ function renderPage(path) {
   const content = document.getElementById('app-content');
 
   if (path === 'dashboard') {
-    content.innerHTML = renderDashboard();
+    DashboardModule.init();
   } else if (path === 'siswa') {
     SiswaModule.init();
   } else if (path === 'soal') {
@@ -78,28 +78,51 @@ function renderPage(path) {
   }
 }
 
-function renderDashboard() {
-  return `
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-      <div class="stat-card">
-        <p class="text-xs font-semibold text-ink/50 uppercase tracking-wide">Total Siswa</p>
-        <p class="font-display font-extrabold text-2xl text-ink mt-1">—</p>
+const DashboardModule = {
+  async init() {
+    const content = document.getElementById('app-content');
+    content.innerHTML = this.renderKerangka(true);
+
+    const sessionToken = Auth.getAdminToken();
+    const [hasilSiswa, hasilSoal] = await Promise.all([
+      Api.post('getSiswaList', { session_token: sessionToken }),
+      Api.post('getSoalList', { session_token: sessionToken }),
+    ]);
+
+    const totalSiswa = hasilSiswa.ok ? hasilSiswa.siswa.length : null;
+    const totalKelas = hasilSiswa.ok ? new Set(hasilSiswa.siswa.map(s => s.Kelas).filter(Boolean)).size : null;
+    const totalSoal = hasilSoal.ok ? hasilSoal.soal.length : null;
+
+    const adaError = !hasilSiswa.ok || !hasilSoal.ok;
+    content.innerHTML = this.renderKerangka(false, { totalSiswa, totalKelas, totalSoal }, adaError);
+  },
+
+  renderKerangka(loading, angka = {}, error = false) {
+    const tampil = (v) => (loading ? '…' : v === null ? '-' : v);
+    return `
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div class="stat-card">
+          <p class="text-xs font-semibold text-ink/50 uppercase tracking-wide">Total Siswa</p>
+          <p class="font-display font-extrabold text-2xl text-ink mt-1">${tampil(angka.totalSiswa)}</p>
+        </div>
+        <div class="stat-card">
+          <p class="text-xs font-semibold text-ink/50 uppercase tracking-wide">Total Kelas</p>
+          <p class="font-display font-extrabold text-2xl text-ink mt-1">${tampil(angka.totalKelas)}</p>
+        </div>
+        <div class="stat-card">
+          <p class="text-xs font-semibold text-ink/50 uppercase tracking-wide">Total Soal</p>
+          <p class="font-display font-extrabold text-2xl text-ink mt-1">${tampil(angka.totalSoal)}</p>
+        </div>
       </div>
-      <div class="stat-card">
-        <p class="text-xs font-semibold text-ink/50 uppercase tracking-wide">Total Kelas</p>
-        <p class="font-display font-extrabold text-2xl text-ink mt-1">—</p>
-      </div>
-      <div class="stat-card">
-        <p class="text-xs font-semibold text-ink/50 uppercase tracking-wide">Total Soal</p>
-        <p class="font-display font-extrabold text-2xl text-ink mt-1">—</p>
-      </div>
-    </div>
-    <div class="placeholder-panel">
-      <p class="font-display font-bold text-ink mb-1">Statistik akan tersambung ke data asli</p>
-      <p class="text-sm text-ink/50">Angka di atas baru tampilan kerangka — akan diisi data sungguhan dari Google Sheets pada tahap berikutnya.</p>
-    </div>
-  `;
-}
+      ${error ? `
+        <div class="placeholder-panel">
+          <p class="font-display font-bold text-brick-500 mb-1">Gagal memuat sebagian data</p>
+          <p class="text-sm text-ink/50">Coba buka menu Data Siswa / Bank Soal untuk melihat detail errornya, atau refresh halaman ini.</p>
+        </div>
+      ` : ''}
+    `;
+  },
+};
 
 function goToRoute(path) {
   window.location.hash = '#/' + path;
